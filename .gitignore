@@ -24,3 +24,6 @@ __pycache__/
 .idea/
 *.swp
 .DS_Store
+
+# Qoder CLI 配置/会话目录
+.qoder/
