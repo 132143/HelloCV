@@ -1,0 +1,26 @@
+# ---- 构建产物 ----
+build/
+*.o
+*.out
+*.a
+*.so
+calc
+
+# ---- Python ----
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.log
+
+# ---- 机密 ----
+.env
+.env.*
+*.key
+
+# ---- 编辑器 ----
+.vscode/
+.idea/
+*.swp
+.DS_Store
