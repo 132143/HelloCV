@@ -3,6 +3,9 @@
 ## 语雀笔记链接汇总
 - Linux系统环境搭建实践笔记：https://www.yuque.com/g/adse-xrk7i/bgxged/rkpsi6wak47lh4vg/collaborator/join?token=BFswVFhZxuQEN3Wt&source=doc_collaborator#
 - Git计算器开发实践笔记：https://www.yuque.com/g/adse-xrk7i/bgxged/kalyfpdzrhnzx12s/collaborator/join?token=mFDl8FBFHKkekKty&source=doc_collaborator#
+- LLM网关实践笔记：https://www.yuque.com/g/adse-xrk7i/bgxged/ma7o0fogcw926ac2/collaborator/join?token=0C4zR688tv460OiM&source=doc_collaborator&goto=%2Fadse-xrk7i%2Fbgxged%2Fma7o0fogcw926ac2%2Fedit#
+- cmake学习笔记：https://www.yuque.com/g/adse-xrk7i/bgxged/fga39heue0p6fckt/collaborator/join?token=FUtLBj1m6OnN5q6w&source=doc_collaborator#
+- cmake实践笔记：
 
 ## 相关项目仓库
 - git_training计算器练习仓库：https://github.com/132143/git_training
