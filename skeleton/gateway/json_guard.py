@@ -113,35 +113,39 @@ def find_first_json_object(text: str) -> Optional[str]:
 
     目标：``tests/test_json_guard.py`` 里的 6 个 ``test_find_first_json_object_*`` 通过。
     """
-    if not isinstance(text, str):
-        return None
-
-    # 从每一个 { 开始试着配对，配不上就换下一个 {
-    for start in range(len(text)):
-        if text[start] != "{":
+    length = len(text)
+    index = 0
+    while index < length:
+        if text[index] != "{":
+            index += 1
             continue
+
+        start = index
         depth = 0
         in_string = False
-        skip_next = False
-        for i in range(start, len(text)):
-            ch = text[i]
-            if skip_next:          # 这个字符被反斜杠转义了，一律跳过
-                skip_next = False
-                continue
+        escaped = False
+        while index < length:
+            char = text[index]
             if in_string:
-                if ch == "\\":
-                    skip_next = True
-                elif ch == '"':
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
                     in_string = False
-                continue           # 字符串内部的括号不参与计数
-            if ch == '"':
+            elif char == '"':
                 in_string = True
-            elif ch == "{":
+            elif char == "{":
                 depth += 1
-            elif ch == "}":
+            elif char == "}":
                 depth -= 1
                 if depth == 0:
-                    return text[start:i + 1]
+                    return text[start:index + 1]
+            index += 1
+
+        # 这个 { 没配平，从下一个字符继续找新的 {
+        index = start + 1
+
     return None
 
 
