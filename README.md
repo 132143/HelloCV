@@ -63,7 +63,7 @@ make
 
 ---
 
-## 第二次任务 · LLM 部分：gateway
+## 第二次任务 · LLM 部分：补全 gateway（skeleton）
 
 把一行 JSON 请求转发给 **DeepSeek 官方 API**，把模型返回的任意文本整理成一行
 严格合法的 JSON，并在网络抖动、上游报错、模型胡说、输入损坏时都不崩。
@@ -75,7 +75,7 @@ make
 
 ### 目录结构
 ```
-gateway/
+skeleton/
 ├── gateway/                    # 网关包
 │   ├── config.py               # 配置（API Key 从环境变量读取）
 │   ├── prompts.py              # 预设提示词
@@ -96,7 +96,7 @@ gateway/
 ```bash
 sudo apt install -y python3 python3-venv python3-pip
 
-cd gateway
+cd skeleton
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
