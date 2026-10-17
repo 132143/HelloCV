@@ -5,7 +5,7 @@
 - Git计算器开发实践笔记：https://www.yuque.com/g/adse-xrk7i/bgxged/kalyfpdzrhnzx12s/collaborator/join?token=mFDl8FBFHKkekKty&source=doc_collaborator#
 - LLM网关实践笔记：https://www.yuque.com/g/adse-xrk7i/bgxged/ma7o0fogcw926ac2/collaborator/join?token=0C4zR688tv460OiM&source=doc_collaborator&goto=%2Fadse-xrk7i%2Fbgxged%2Fma7o0fogcw926ac2%2Fedit#
 - cmake学习笔记：https://www.yuque.com/g/adse-xrk7i/bgxged/fga39heue0p6fckt/collaborator/join?token=FUtLBj1m6OnN5q6w&source=doc_collaborator#
-- cmake实践笔记：
+- cmake实践笔记：https://www.yuque.com/g/adse-xrk7i/bgxged/zpf5biuexxwx193s/collaborator/join?token=mY9UvR5OxjPL33wq&source=doc_collaborator# 
 
 ## 相关项目仓库
 - git_training计算器练习仓库：https://github.com/132143/git_training
