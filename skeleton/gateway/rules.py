@@ -13,6 +13,14 @@
 * :func:`build_decision` / :func:`is_valid_decision` —— 「出口闸门」：只放行 {time, option}。
 
 **网关是可信边界**：``time`` 一律以网关收到/生成的时间为准，不采信模型自己写的 time。
+
+你需要实现（共 3 个）::
+
+    normalize_option(value)                      -> str | None
+    validate_decision(candidate, request)        -> (决策, 说明列表)
+    fallback_decision(request)                   -> (决策, 说明列表)
+
+对应测试：``tests/test_rules.py`` 的「整理」「校验与兜底」两节。
 """
 
 from __future__ import annotations
@@ -45,7 +53,7 @@ OPTIONS: Tuple[str, ...] = ("rock", "scissor", "paper")
 #: 谁赢谁：key 打败 value
 BEATS: Dict[str, str] = {"rock": "scissor", "scissor": "paper", "paper": "rock"}
 
-#: 模型可能写出来的同义写法 -> 标准值
+#: 模型可能写出来的同义写法 -> 标准值（已经给你了，直接用）
 ALIASES: Dict[str, str] = {
     "rock": "rock",
     "rocks": "rock",
@@ -64,7 +72,7 @@ _MAX_HISTORY = 10
 
 
 # --------------------------------------------------------------------------- #
-# 读：输入解析
+# 读：输入解析（已写好，不用改）
 # --------------------------------------------------------------------------- #
 def now_iso() -> str:
     """当前时间（带时区的 ISO8601），输入缺 time 时由网关自己补。"""
@@ -72,12 +80,7 @@ def now_iso() -> str:
 
 
 def normalize_time(value: Any) -> Optional[str]:
-    """把 time 字段拉成非空字符串；无法识别返回 ``None``。
-
-    * 字符串：去空白后原样返回（超过 64 字符视为异常）；
-    * 数字：按 Unix 秒解释，转成 ISO8601（写日志/测试时更好读）；
-    * 布尔 / 其它类型：``None``（注意 ``True`` 在 Python 里是 int，要单独挡掉）。
-    """
+    """把 time 字段拉成非空字符串；无法识别返回 ``None``。"""
     if isinstance(value, bool) or value is None:
         return None
     if isinstance(value, str):
@@ -113,7 +116,7 @@ def get_time(request: Dict[str, Any]) -> Optional[str]:
 
 
 def history_of(request: Dict[str, Any]) -> List[str]:
-    """取对手历史出拳：只保留能识别成 rock/scissor/paper 的元素，最多保留最近 10 个。"""
+    """取对手历史出拳：只保留能识别的元素，最多保留最近 10 个。"""
     if not isinstance(request, dict):
         return []
     raw = request.get("history")
@@ -128,12 +131,18 @@ def history_of(request: Dict[str, Any]) -> List[str]:
 
 
 # --------------------------------------------------------------------------- #
-# 整理：枚举归一化
+# TODO 4：枚举归一化
 # --------------------------------------------------------------------------- #
 def normalize_option(value: Any) -> Optional[str]:
     """把模型给的取值拉回 ``OPTIONS``；无法识别返回 ``None``。
 
-    要处理的脏数据：大写 ``ROCK``、前后空格、复数 ``scissors``、中文 ``石头``。
+    提示：
+
+    * 非字符串直接返回 ``None``（``42`` / ``None`` / ``["rock"]`` 都不算有效出拳）；
+    * ``value.strip().lower()`` 之后查 :data:`ALIASES`：
+      这样 ``"  ROCK "`` -> ``rock``、``"Scissors"`` -> ``scissor``、``"石头"`` -> ``rock``。
+
+    目标：``tests/test_rules.py`` 的 ``test_normalize_option_*`` 与 ``test_aliases_*`` 通过。
     """
     if not isinstance(value, str):
         return None
@@ -141,7 +150,7 @@ def normalize_option(value: Any) -> Optional[str]:
 
 
 # --------------------------------------------------------------------------- #
-# 出口闸门
+# 出口闸门（已写好，不用改）
 # --------------------------------------------------------------------------- #
 def build_decision(time_value: Any, option: Any) -> Dict[str, Any]:
     """按协议构造决策对象：**只有** time 与 option 两个键，多余字段一律不带出网关。"""
@@ -159,46 +168,63 @@ def is_valid_decision(payload: Any) -> bool:
     return payload["option"] in OPTIONS
 
 
+# --------------------------------------------------------------------------- #
+# TODO 5：校验与修正
+# --------------------------------------------------------------------------- #
 def validate_decision(candidate: Any, request: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
-    """把模型输出修正成合法决策。
+    """把模型输出修正成合法决策，返回 ``(决策, 修正说明列表)``，**永不抛异常**。
 
-    返回 ``(决策, 修正说明列表)``，**永不抛异常**：
+    提示：
 
-    * ``candidate`` 不是对象 / option 缺失或非法 -> 走 :func:`fallback_decision`；
-    * time 一律取「请求里的 time」，请求里没有才用模型给的，最后才用当前时间。
+    1. ``candidate`` 不是 dict -> 直接 ``return fallback_decision(request)``，
+       并在说明里加上 ``"非对象->兜底"``；
+    2. ``normalize_option(candidate.get("option"))`` 得到 ``None`` -> 同样走兜底，
+       说明里加上 ``"option 非法->兜底"``；
+    3. time 以请求为准（网关是可信边界）：
+       * 请求里有 time -> 用它；若模型也写了不同的 time，说明里加一句 "丢弃模型的 time"；
+       * 请求里没有 -> 用模型给的 time（说明 "请求无 time->用模型的 time"）；
+       * 都没有 -> ``now_iso()``（说明 "请求无 time->用当前时间"）；
+    4. 最后 ``build_decision(time_value, option)`` 返回，保证只有两个键。
+
+    注意 ``fallback_decision`` 返回的是 ``(决策, 说明)`` 元组，别把元组当决策返回。
+
+    目标：``tests/test_rules.py`` 的 ``test_validate_decision_*`` 通过。
     """
     notes: List[str] = []
-    if not isinstance(candidate, dict):
-        fallback, extra = fallback_decision(request)
-        return fallback, notes + ["非对象->兜底"] + extra
 
+    # ① 模型交上来的根本不是对象
+    if not isinstance(candidate, dict):
+        decision, extra = fallback_decision(request)
+        return decision, notes + ["非对象->兜底"] + extra
+
+    # ② 出拳取值不认识
     option = normalize_option(candidate.get("option"))
     if option is None:
-        fallback, extra = fallback_decision(request)
-        return fallback, notes + ["option 非法->兜底"] + extra
+        decision, extra = fallback_decision(request)
+        return decision, notes + ["option 非法->兜底"] + extra
 
-    # 网关是可信边界：请求里的 time 优先，模型写的 time 只做参考。
+    # ③ time 以请求为准：请求说了算，模型说的只作参考
     request_time = get_time(request)
+    model_time = normalize_time(candidate.get("time"))
     if request_time is not None:
-        if normalize_time(candidate.get("time")) not in (None, request_time):
+        if model_time is not None and model_time != request_time:
             notes.append("丢弃模型的 time")
-        time_value = request_time
+        final_time = request_time
+    elif model_time is not None:
+        notes.append("请求无 time->用模型的 time")
+        final_time = model_time
     else:
-        model_time = normalize_time(candidate.get("time"))
-        if model_time is not None:
-            notes.append("请求无 time->用模型的 time")
-            time_value = model_time
-        else:
-            notes.append("请求无 time->用当前时间")
-            time_value = now_iso()
-    return build_decision(time_value, option), notes
+        notes.append("请求无 time->用当前时间")
+        final_time = now_iso()
+
+    return build_decision(final_time, option), notes
 
 
 # --------------------------------------------------------------------------- #
-# 兜底
+# TODO 6：本地兜底
 # --------------------------------------------------------------------------- #
 def counter_to(option: str) -> str:
-    """能赢过 ``option`` 的出拳。"""
+    """能赢过 ``option`` 的出拳（已写好，直接用）。"""
     for candidate, beaten in BEATS.items():
         if beaten == option:
             return candidate
@@ -206,24 +232,34 @@ def counter_to(option: str) -> str:
 
 
 def fallback_decision(request: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
-    """不依赖模型的本地兜底决策。
+    """不依赖模型的本地兜底决策：任何输入都要给出合法决策。
 
-    策略：对手上一手是 X 就出能赢 X 的拳（history 的最后一项）；没有 history 就出 rock。
-    保证任何输入都能得到合法决策。
+    提示：
+
+    * ``history = history_of(request)``；有历史就出 ``counter_to(history[-1])``
+      （对手上一手是 X，就出能赢 X 的拳），说明里写 ``"兜底:counter(X)"``；
+    * 没有历史就出 ``"rock"``，说明里写 ``"兜底:rock"``；
+    * time 用 ``get_time(request) or now_iso()``；
+    * 返回 ``(build_decision(time_value, option), [说明])``。
+
+    目标：``tests/test_rules.py`` 的 ``test_fallback_decision_*`` 通过。
     """
     history = history_of(request)
     if history:
-        option = counter_to(history[-1])
-        notes = ["兜底:counter(%s)" % history[-1]]
+        # 对手上一手出 X，我就出能赢 X 的拳
+        last = history[-1]
+        option = counter_to(last)
+        notes = ["兜底:counter(%s)" % last]
     else:
         option = "rock"
         notes = ["兜底:rock"]
+
     time_value = get_time(request) or now_iso()
     return build_decision(time_value, option), notes
 
 
 # --------------------------------------------------------------------------- #
-# 裁判
+# 裁判（已写好，不用改）
 # --------------------------------------------------------------------------- #
 def judge(mine: str, theirs: str) -> int:
     """比较两手：``1`` 我赢，``-1`` 我输，``0`` 平局。"""

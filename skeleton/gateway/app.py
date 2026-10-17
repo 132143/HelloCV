@@ -3,6 +3,13 @@
 对外只有一条硬性约定：**读进来一行，就写出去一行合法 JSON 决策**。
 不管上游挂了、模型胡说、还是输入本身不是 JSON，都不允许把异常抛给调用方，
 也不允许输出半截/非法 JSON —— 否则下游（真实系统里的消息总线）会直接报错。
+
+你需要实现（共 1 个，但它是把前面所有零件接起来的那一步）::
+
+    handle_request(request) -> (决策, 说明列表)
+
+``handle_line`` / ``run`` / ``Stats`` 已经写好，不用改。
+对应测试：``tests/test_app.py``。
 """
 
 from __future__ import annotations
@@ -13,8 +20,8 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, TextIO, Tuple
 
 from .client import LlmClient
 from .config import GatewayConfig
-from .json_guard import JsonGuardError, dumps_json, loads_object
-from .rules import (
+from .json_guard import JsonGuardError, dumps_json, loads_object  # noqa: F401 - 实现 handle_request 时要用到
+from .rules import (  # noqa: F401 - 实现 handle_request 时要用到
     build_decision,
     fallback_decision,
     get_time,
@@ -66,27 +73,38 @@ class JsonGateway:
             self.client = LlmClient(config, log=lambda message: self.log("上游: %s" % message))
 
     # ------------------------------------------------------------------ #
-    # 核心编排
+    # TODO 10：核心编排
     # ------------------------------------------------------------------ #
     def handle_request(self, request: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
         """核心编排：调用上游 -> JSON 容错 -> 合法性校验 -> 兜底。
 
-        返回 ``(合法决策, 说明列表)``，**永不抛异常**：
+    返回 ``(合法决策, 说明列表)``，**永不抛异常**。提示：
 
-        1. 有客户端时先 ``self.client.decide(request)`` 拿回原始文本；
-        2. ``loads_object`` 把任意文本整理成 dict（失败抛 :class:`JsonGuardError`）；
-        3. ``validate_decision`` 校验/修正成合法决策（内部也会兜底）；
-        4. 上面任何一步抛异常，就用 ``fallback_decision`` 本地出拳；
-        5. 出口再用 ``is_valid_decision`` 自检一次，不过就退化成 ``rock``。
+    1. ``notes: List[str] = []``、``decision: Optional[Dict[str, Any]] = None``；
+    2. 只有在 ``self.client is not None``（在线模式）时才调用上游：
+       * ``content, meta = self.client.decide(request)`` 拿回原始文本；
+       * ``candidate = loads_object(content)`` 把任意文本整理成 dict；
+       * ``decision, notes = validate_decision(candidate, request)`` 校验/修正；
+       * 可以顺手把 ``meta["latency_s"]`` 之类写进日志（可选）；
+    3. ``JsonGuardError``（模型输出整理不出来）和**其它任何异常**（上游超时、500……）
+       都要被接住：往 ``notes`` 里记一句原因，然后 ``decision`` 保持为 ``None``；
+    4. ``decision is None`` 时用 ``fallback_decision(request)`` 本地出拳，
+       ``notes`` 里加上 ``"本地兜底"`` 和兜底自己的说明；
+    5. 出口用 ``is_valid_decision(decision)`` 再自检一次，
+       万一不合法就退化成 ``build_decision(get_time(request) or now_iso(), "rock")``，
+       ``notes`` 里加上 ``"出口自检失败->rock"``；
+    6. 返回 ``(decision, notes)``。
+
+    目标：``tests/test_app.py`` 的 ``test_handle_request_*`` 与 ``test_run_*`` 通过。
         """
         notes: List[str] = []
         decision: Optional[Dict[str, Any]] = None
 
+        # ---- ① 在线模式才去问上游 ----
         if self.client is not None:
             try:
                 content, meta = self.client.decide(request)
-                candidate = loads_object(content)
-                decision, notes = validate_decision(candidate, request)
+                decision, notes = validate_decision(loads_object(content), request)
                 self.log(
                     "上游返回 %.2fs（attempt=%s, finish=%s, 含思维链=%s）"
                     % (
@@ -103,15 +121,21 @@ class JsonGateway:
                 notes.append("上游异常: %s" % exc)
                 self.log(str(exc))
 
+        # ---- ② 拿不到合法决策就本地兜底 ----
         if decision is None:
             decision, extra = fallback_decision(request)
             notes = notes + ["本地兜底"] + extra
 
+        # ---- ③ 出口再自检一次，保证一定合法 ----
         if not is_valid_decision(decision):
             decision = build_decision(get_time(request) or now_iso(), "rock")
             notes.append("出口自检失败->rock")
+
         return decision, notes
 
+    # ------------------------------------------------------------------ #
+    # 已写好：输入解析与主循环（不用改）
+    # ------------------------------------------------------------------ #
     def handle_line(self, line: str) -> Tuple[Dict[str, Any], List[str]]:
         """一行文本 -> ``(决策, 说明)``。
 
@@ -128,9 +152,6 @@ class JsonGateway:
         decision, extra = self.handle_request(request)
         return decision, notes + extra
 
-    # ------------------------------------------------------------------ #
-    # 主循环
-    # ------------------------------------------------------------------ #
     def run(self, reader: Iterable[str], writer: TextIO) -> Stats:
         """逐行处理，写出 ``{"time": ..., "option": ...}``，返回统计。"""
         stats = Stats()
@@ -152,5 +173,8 @@ class JsonGateway:
                 stats.repaired += 1
             else:
                 stats.ok += 1
-            self.log("第 %d 行 -> %s %s" % (stats.lines, dumps_json(decision), ("| " + "; ".join(notes)) if notes else ""))
+            self.log(
+                "第 %d 行 -> %s %s"
+                % (stats.lines, dumps_json(decision), ("| " + "; ".join(notes)) if notes else "")
+            )
         return stats

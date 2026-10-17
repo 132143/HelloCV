@@ -1,6 +1,8 @@
 """JSON 容错层：把模型返回的**任意文本**整理成 Python 字典。
 
-这是本练习最核心的模块。模型（即使开了 JSON 模式）经常会返回这些东西：
+这是本练习最核心的模块，也是你主要要写的地方。
+
+模型（即使开了 JSON 模式）经常返回这些东西：
 
 * ````` ```json {...} ``` ```` —— 外面套了 markdown 代码块
 * ``好的，我出剪刀：{"option": "scissor"}`` —— 前后夹带自然语言
@@ -10,7 +12,7 @@
 * ``{"option": "rock"`` —— 少了一个右括号
 * 直接摆烂：``抱歉，我无法回答。``
 
-``loads_object`` 的容错阶梯（逐级降级，任一级成功就返回）：
+``loads_object`` 的容错阶梯（已经给你写好了，它调用下面三个 TODO）：
 
 1. 直接 ``json.loads``
 2. :func:`strip_code_fence` 剥掉 markdown 围栏
@@ -19,8 +21,16 @@
 5. 顶层是数组就取第一个对象
 6. 全部失败 —— 抛 :class:`JsonGuardError`，由上层走兜底逻辑
 
-**重要原则：容错不等于瞎猜。** 这里只做「把明显是 JSON 的文本救回来」，
-不做语义修补；字段缺失、取值非法交给 :mod:`gateway.rules` 处理。
+**重要原则：容错不等于瞎猜。** 这里只负责「把明显是 JSON 的文本救回来」，
+不做语义修补；字段缺失、取值非法是 :mod:`gateway.rules` 的事。
+
+你需要实现（共 3 个）::
+
+    strip_code_fence(text)          -> str          # 剥 markdown 围栏
+    find_first_json_object(text)    -> str | None   # 字符串感知的括号配对
+    repair_json_text(text)          -> str          # 文本级修复
+
+对应测试：``tests/test_json_guard.py``。
 """
 
 from __future__ import annotations
@@ -45,88 +55,98 @@ class JsonGuardError(ValueError):
 
 
 # --------------------------------------------------------------------------- #
-# 第 1 级：markdown 围栏
+# TODO 1：剥掉 markdown 围栏
 # --------------------------------------------------------------------------- #
 def strip_code_fence(text: str) -> str:
     """如果文本里有 ```` ``` ```` 围栏，返回围栏**内部**的内容；否则原样返回。
 
-    要点：
+    提示：
 
-    * 语言标记行（``json`` / ``JSON`` / ``js`` …）要丢掉；
-    * 没写结束围栏（模型被截断）时，取到文本结尾；
-    * 围栏可能出现在自然语言中间（``好的：```json {...}``` ``），所以不能只看开头。
+    * ``text.split("```")`` 之后，下标 1、3、5… 的片段就是围栏内部；
+    * 语言标记行（``json`` / ``JSON`` / ``js``…）要丢掉：判断第一行很短且不含 ``{``；
+    * 没写结束围栏（模型被截断）时，取到文本结尾即可（``split`` 天然就是这个效果）；
+    * 围栏可能出现在自然语言中间（``好的：```json {...}``` ``），别只看开头；
+    * 有多个围栏时，优先返回「第一个以 ``{`` 开头的」，没有就返回第一个非空片段。
+
+    目标：``tests/test_json_guard.py`` 里的 5 个 ``test_strip_code_fence_*`` 通过。
     """
     if not isinstance(text, str) or "```" not in text:
         return text
-    # 用 ``` 切分：第 1、3、5…（下标 1,3,5…）段是围栏内部
-    parts = text.split("```")
-    bodies: List[str] = []
-    for index in range(1, len(parts), 2):
-        body = parts[index]
-        newline = body.find("\n")
-        if newline != -1:
-            head = body[:newline].strip()
-            if len(head) <= 20 and "{" not in head:  # 丢掉 ```json 这类语言标记行
-                body = body[newline + 1:]
-        body = body.strip()
-        if body:
-            bodies.append(body)
-    if not bodies:
+
+    # 用 ``` 切开：下标 1、3、5… 的片段就是围栏内部
+    pieces = []
+    chunks = text.split("```")
+    for index in range(1, len(chunks), 2):
+        piece = chunks[index]
+        # 丢掉 "```json" 这类的语言标记行（只在这一行很短、且不含花括号时才丢）
+        if "\n" in piece:
+            head, _, tail = piece.partition("\n")
+            if "{" not in head and len(head.strip()) <= 20:
+                piece = tail
+        piece = piece.strip()
+        if piece:
+            pieces.append(piece)
+
+    if not pieces:
         return text
-    # 取第一个「看起来像 JSON 对象」的围栏，没有就取第一个
-    for body in bodies:
-        if body.lstrip().startswith("{"):
-            return body
-    return bodies[0]
+
+    # 有多个围栏时，优先返回第一个"看起来像 JSON 对象"的
+    for piece in pieces:
+        if piece.startswith("{"):
+            return piece
+    return pieces[0]
 
 
 # --------------------------------------------------------------------------- #
-# 第 2 级：字符串感知的括号配对
+# TODO 2：字符串感知的括号配对
 # --------------------------------------------------------------------------- #
 def find_first_json_object(text: str) -> Optional[str]:
     """从自由文本中找出第一个**括号配平**的 ``{...}``，找不到返回 ``None``。
 
-    难点在于「字符串感知」：``{"reason": "a } b"}`` 里的 ``}`` 不能算作结束，
-    引号内的转义 ``\\"`` 也不能算作字符串结束。逐字符扫描，用一个
-    ``in_string`` / ``escaped`` 状态机来跳过字符串内部。
+    提示：
+
+    * 逐字符扫描，维护 ``depth``（花括号深度）、``in_string``、``escaped`` 三个状态；
+    * 字符串内部的 ``{`` ``}`` 不参与计数；``\\"`` 不算字符串结束；
+    * 从每个 ``{`` 开始尝试，``depth`` 回到 0 就返回 ``text[start:index + 1]``；
+    * 某个 ``{`` 一直没配平，就换下一个 ``{`` 继续找；
+    * 找不到任何配平对象时返回 ``None``（上层会去走修复或兜底）。
+
+    目标：``tests/test_json_guard.py`` 里的 6 个 ``test_find_first_json_object_*`` 通过。
     """
     if not isinstance(text, str):
         return None
-    length = len(text)
-    start = 0
-    while start < length:
+
+    # 从每一个 { 开始试着配对，配不上就换下一个 {
+    for start in range(len(text)):
         if text[start] != "{":
-            start += 1
             continue
         depth = 0
         in_string = False
-        escaped = False
-        index = start
-        while index < length:
-            char = text[index]
+        skip_next = False
+        for i in range(start, len(text)):
+            ch = text[i]
+            if skip_next:          # 这个字符被反斜杠转义了，一律跳过
+                skip_next = False
+                continue
             if in_string:
-                if escaped:
-                    escaped = False
-                elif char == "\\":
-                    escaped = True
-                elif char == '"':
+                if ch == "\\":
+                    skip_next = True
+                elif ch == '"':
                     in_string = False
-            else:
-                if char == '"':
-                    in_string = True
-                elif char == "{":
-                    depth += 1
-                elif char == "}":
-                    depth -= 1
-                    if depth == 0:
-                        return text[start:index + 1]
-            index += 1
-        start += 1  # 这个 { 没有配平，从下一个 { 继续找
+                continue           # 字符串内部的括号不参与计数
+            if ch == '"':
+                in_string = True
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[start:i + 1]
     return None
 
 
 # --------------------------------------------------------------------------- #
-# 第 3 级：文本修复
+# 已经写好的小工具（修复时用得上，不用改）
 # --------------------------------------------------------------------------- #
 _PY_LITERAL_RE = re.compile(r"(?<![\w\"'])(None|True|False)(?![\w\"'])")
 _PY_LITERALS = {"None": "null", "True": "true", "False": "false"}
@@ -175,7 +195,7 @@ def _normalize_strings(text: str) -> str:
 
     * 不在字符串里遇到 ``'`` / ``“`` / ``”`` 时，都当成字符串开头，输出 ``"``；
     * 字符串内部的中文引号按普通字符保留（否则会把 ``"他说“好”"`` 改坏）；
-    * 字符串内部的裸换行 / 制表符转义成 ``\\n`` / ``\\t``（模型最常见的破格方式）。
+    * 字符串内部的裸换行 / 制表符转义成 ``\\n`` / ``\\t``。
     """
     out: List[str] = []
     closers: List[str] = []
@@ -237,24 +257,43 @@ def _close_unfinished(text: str) -> str:
     return stripped + suffix
 
 
+# --------------------------------------------------------------------------- #
+# TODO 3：文本级修复
+# --------------------------------------------------------------------------- #
 def repair_json_text(text: str) -> str:
     """对「明显是 JSON、但有点小毛病」的文本做修复（不保证一定成功）。
 
-    至少覆盖：``//`` 与 ``/* */`` 注释、``None/True/False``、尾随逗号、
-    单引号与中文引号、字符串内裸换行、缺失的右括号。
+    提示（按顺序做，上面三个工具函数直接用）：
+
+    1. ``_strip_comments(text).strip()`` 去注释；
+    2. 用 ``_PY_LITERAL_RE`` 把 ``None/True/False`` 换成 ``null/true/false``
+       （``re.sub`` 的回调用 lambda 查 ``_PY_LITERALS``）；
+    3. 正则去掉尾随逗号：把 ``,`` 后面只跟 ``}`` / ``]`` 的情况删掉；
+    4. 去掉结尾多余的逗号与空白；
+    5. ``_normalize_strings`` 统一引号 + 转义裸换行；
+    6. ``_close_unfinished`` 补齐缺失的右引号 / 右括号。
+
+    目标：``tests/test_json_guard.py`` 里的 9 个 ``test_repair_*`` 通过。
     """
     if not isinstance(text, str):
         return text
-    repaired = _strip_comments(text).strip()
-    repaired = _PY_LITERAL_RE.sub(lambda match: _PY_LITERALS[match.group(1)], repaired)
-    repaired = re.sub(r",(\s*[}\]])", r"\1", repaired)  # {"a": 1,} -> {"a": 1}
-    repaired = re.sub(r"([}\]])[\s,]*$", r"\1", repaired)  # 结尾多余的逗号/空白
-    repaired = _normalize_strings(repaired)
-    return _close_unfinished(repaired)
+
+    fixed = _strip_comments(text).strip()
+    # None / True / False -> null / true / false
+    fixed = _PY_LITERAL_RE.sub(lambda m: _PY_LITERALS[m.group(1)], fixed)
+    # 去掉紧跟在右括号前的逗号：{"a": 1,} -> {"a": 1}
+    fixed = re.sub(r",(\s*[}\]])", r"\1", fixed)
+    # 去掉结尾多余的逗号
+    fixed = re.sub(r"([}\]])\s*,?\s*$", r"\1", fixed)
+    # 引号规范化 + 字符串里的裸换行
+    fixed = _normalize_strings(fixed)
+    # 缺右括号就补上
+    fixed = _close_unfinished(fixed)
+    return fixed
 
 
 # --------------------------------------------------------------------------- #
-# 编排：容错阶梯
+# 编排：容错阶梯（已写好，不用改）
 # --------------------------------------------------------------------------- #
 def _candidate_texts(text: str) -> List[str]:
     """按「原文 -> 围栏内 -> 自由文本里抠出来的对象」收集候选片段。"""
