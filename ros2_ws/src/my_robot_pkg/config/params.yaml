@@ -1,0 +1,4 @@
+talker:
+  ros__parameters:
+    prefix: "hi-from-param"
+    rate_ms: 1000

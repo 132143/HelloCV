@@ -1,11 +1,33 @@
 # HelloCV 纳新任务总仓库
 
+## 仓库任务对照表
+
+| 目录 | 属于哪次任务 | 内容 |
+|---|---|---|
+| `UnitConverter/` | **第二次任务 · CMake** | 单位转换器（温度 / 长度 / 质量三组互转） |
+| `skeleton/` | **第二次任务 · LLM** | 补全的训练仓库 gateway（93 个测试全绿） |
+| `ros2_ws/` | **第三次任务 · ROS2** | `my_robot_pkg`：话题 / 服务 / 参数 / TF / launch |
+
+> **说明**：
+> - 第一次任务的 Git 计算器代码在**独立仓库** [git_training](https://github.com/132143/git_training)，不在本仓库内。
+> - 本仓库按"任务 + 技术栈"分目录，每个目录只属于一次任务，互不混用。
+
 ## 语雀笔记链接汇总
-- Linux系统环境搭建实践笔记：https://www.yuque.com/g/adse-xrk7i/bgxged/rkpsi6wak47lh4vg/collaborator/join?token=BFswVFhZxuQEN3Wt&source=doc_collaborator#
-- Git计算器开发实践笔记：https://www.yuque.com/g/adse-xrk7i/bgxged/kalyfpdzrhnzx12s/collaborator/join?token=mFDl8FBFHKkekKty&source=doc_collaborator#
-- LLM网关实践笔记：https://www.yuque.com/g/adse-xrk7i/bgxged/ma7o0fogcw926ac2/collaborator/join?token=0C4zR688tv460OiM&source=doc_collaborator&goto=%2Fadse-xrk7i%2Fbgxged%2Fma7o0fogcw926ac2%2Fedit#
-- cmake学习笔记：https://www.yuque.com/g/adse-xrk7i/bgxged/fga39heue0p6fckt/collaborator/join?token=FUtLBj1m6OnN5q6w&source=doc_collaborator#
-- cmake实践笔记：https://www.yuque.com/g/adse-xrk7i/bgxged/zpf5biuexxwx193s/collaborator/join?token=mY9UvR5OxjPL33wq&source=doc_collaborator# 
+
+**第一次任务**
+- Linux 系统环境搭建实践笔记：https://www.yuque.com/g/adse-xrk7i/bgxged/rkpsi6wak47lh4vg/collaborator/join?token=BFswVFhZxuQEN3Wt&source=doc_collaborator#
+- Git 计算器开发实践笔记：https://www.yuque.com/g/adse-xrk7i/bgxged/kalyfpdzrhnzx12s/collaborator/join?token=mFDl8FBFHKkekKty&source=doc_collaborator#
+
+**第二次任务 · CMake**
+- CMake 学习笔记：https://www.yuque.com/g/adse-xrk7i/bgxged/fga39heue0p6fckt/collaborator/join?token=FUtLBj1m6OnN5q6w&source=doc_collaborator#
+- CMake 实践笔记：https://www.yuque.com/g/adse-xrk7i/bgxged/zpf5biuexxwx193s/collaborator/join?token=mY9UvR5OxjPL33wq&source=doc_collaborator#
+
+**第二次任务 · LLM**
+- LLM 网关实践笔记：https://www.yuque.com/g/adse-xrk7i/bgxged/ma7o0fogcw926ac2/collaborator/join?token=0C4zR688tv460OiM&source=doc_collaborator&goto=%2Fadse-xrk7i%2Fbgxged%2Fma7o0fogcw926ac2%2Fedit#
+
+**第三次任务 · ROS2**
+- ROS2 学习笔记：<待填写>
+- ROS2 实操记录：<待填写>
 
 ## 相关项目仓库
 - git_training计算器练习仓库：https://github.com/132143/git_training
@@ -61,8 +83,8 @@ make
 - 源码外构建：`mkdir build && cd build && cmake .. && make`
 
 ### 语雀笔记
-- CMake 学习记录：<待填写>
-- CMake 实践任务记录：<待填写>
+- CMake 学习记录：https://www.yuque.com/g/adse-xrk7i/bgxged/fga39heue0p6fckt/collaborator/join?token=FUtLBj1m6OnN5q6w&source=doc_collaborator#
+- CMake 实践任务记录：https://www.yuque.com/g/adse-xrk7i/bgxged/zpf5biuexxwx193s/collaborator/join?token=mY9UvR5OxjPL33wq&source=doc_collaborator#
 
 ---
 
@@ -141,4 +163,100 @@ python play_game.py --rounds 10 --strategy counter
 | 空 `content` / 网络异常 | 退避重试 |
 
 ### 语雀笔记
-- LLM 网关实践任务记录：<待填写>
+- LLM 网关实践任务记录：https://www.yuque.com/g/adse-xrk7i/bgxged/ma7o0fogcw926ac2/collaborator/join?token=0C4zR688tv460OiM&source=doc_collaborator&goto=%2Fadse-xrk7i%2Fbgxged%2Fma7o0fogcw926ac2%2Fedit#
+
+---
+
+## 第三次任务 · ROS2 部分：my_robot_pkg
+
+一个最小但完整的 ROS2 功能包，覆盖原文要求的全部学习内容：
+**节点编写 / 话题 / 服务 / 参数 / TF / launch**。
+
+### 项目结构
+```
+ros2_ws/
+├── README.md
+└── src/
+    └── my_robot_pkg/
+        ├── CMakeLists.txt
+        ├── package.xml
+        ├── config/
+        │   └── params.yaml          # 节点参数
+        ├── launch/
+        │   └── demo.launch.py       # 一键启动 4 个节点
+        └── src/
+            ├── talker.cpp           # 话题发布者 + 参数
+            ├── listener.cpp         # 话题订阅者 + QoS
+            ├── add_server.cpp       # 服务端
+            ├── add_client.cpp       # 客户端
+            └── tf_broadcaster.cpp   # TF 坐标变换广播
+```
+
+> `ros2_ws/build/`、`ros2_ws/install/`、`ros2_ws/log/` 是 `colcon build` 自动生成的，
+> 已在 `.gitignore` 中排除，**不提交**。
+
+### 环境配置步骤
+```bash
+# 1. 安装 ROS2 Humble（Ubuntu 22.04）
+#    官方文档：https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debians.html
+#    或鱼香 ROS 一键安装：wget http://fishros.com/install -O fishros && . fishros
+
+# 2. 装构建与调试工具
+sudo apt install -y python3-colcon-common-extensions ros-humble-desktop
+sudo apt install -y ros-humble-tf2-tools ros-humble-rqt evince
+
+# 3. 让每个终端自动 source
+echo 'source /opt/ros/humble/setup.bash' >> ~/.bashrc
+echo 'source ~/ros2_ws/install/setup.bash 2>/dev/null || true' >> ~/.bashrc
+```
+
+### 编译与运行
+```bash
+# 编译
+cd ~/ros2_ws
+colcon build --symlink-install --packages-select my_robot_pkg
+source install/setup.bash
+
+# 一键启动全部节点（含参数文件与话题重映射）
+ros2 launch my_robot_pkg demo.launch.py
+```
+
+### 单独运行各个节点
+```bash
+ros2 run my_robot_pkg talker          # 话题发布（带参数）
+ros2 run my_robot_pkg listener        # 话题订阅（带 QoS）
+ros2 run my_robot_pkg add_server      # 服务端
+ros2 run my_robot_pkg add_client      # 客户端（调用上面的服务）
+ros2 run my_robot_pkg tf_broadcaster  # TF 广播
+```
+
+### 常用调试命令
+```bash
+ros2 node list                        # 有哪些节点
+ros2 node info /talker                # 某节点发什么收什么
+ros2 topic list -t                    # 有哪些话题（带类型）
+ros2 topic echo /chatter              # 实时看话题内容
+ros2 topic hz /chatter                # 看发布频率
+ros2 topic info /chatter -v           # 看双方的 QoS
+ros2 service list -t                  # 有哪些服务
+ros2 service call /add_two_ints example_interfaces/srv/AddTwoInts "{a: 3, b: 5}"
+ros2 param list /talker               # 看参数
+ros2 param set /talker prefix "test"  # 改参数
+ros2 run tf2_tools view_frames        # 生成 TF 树图（文件名带时间戳）
+rviz2                                 # 3D 可视化（Fixed Frame 填 world）
+```
+
+### 覆盖的学习内容对照
+| 原文要求 | 对应实现 |
+|---|---|
+| 工作空间 / 功能包 / `package.xml` / `CMakeLists.txt` | `ros2_ws/` + `my_robot_pkg/` |
+| C++ 节点编写与生命周期 | 5 个节点均继承 `rclcpp::Node` |
+| 话题 Pub-Sub、`rclcpp::Publisher` / `Subscription`、QoS | `talker.cpp` + `listener.cpp` |
+| 服务 Client-Server、`rclcpp::Service` / `Client` | `add_server.cpp` + `add_client.cpp` |
+| 参数声明 / 读取 / 设置、命令行查看修改 | `talker.cpp` + `config/params.yaml` |
+| TF 树、`view_frames`、rviz 查看 | `tf_broadcaster.cpp` |
+| launch 基本结构、多节点、参数、remap | `launch/demo.launch.py` |
+
+### 语雀笔记
+- ROS2 学习笔记：<待填写>
+- ROS2 实操记录：<待填写>

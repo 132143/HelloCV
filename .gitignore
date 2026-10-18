@@ -27,3 +27,6 @@ __pycache__/
 
 # Qoder CLI 配置/会话目录
 .qoder/
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
