@@ -26,7 +26,7 @@
 - LLM 网关实践笔记：https://www.yuque.com/g/adse-xrk7i/bgxged/ma7o0fogcw926ac2/collaborator/join?token=0C4zR688tv460OiM&source=doc_collaborator&goto=%2Fadse-xrk7i%2Fbgxged%2Fma7o0fogcw926ac2%2Fedit#
 
 **第三次任务 · ROS2**
-- ROS2 学习笔记：<待填写>
+- ROS2 学习笔记：https://www.yuque.com/g/adse-xrk7i/bgxged/qfmckiz725nf0vgo/collaborator/join?token=1naScvr8HUwIW5An&source=doc_collaborator#
 - ROS2 实操记录：<待填写>
 
 ## 相关项目仓库
@@ -258,5 +258,5 @@ rviz2                                 # 3D 可视化（Fixed Frame 填 world）
 | launch 基本结构、多节点、参数、remap | `launch/demo.launch.py` |
 
 ### 语雀笔记
-- ROS2 学习笔记：<待填写>
+- ROS2 学习笔记：https://www.yuque.com/g/adse-xrk7i/bgxged/qfmckiz725nf0vgo/collaborator/join?token=1naScvr8HUwIW5An&source=doc_collaborator#
 - ROS2 实操记录：<待填写>
